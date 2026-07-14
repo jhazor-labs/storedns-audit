@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StoreDNS Audit - DNS security check for Shopify stores</title>
+<meta name="description" content="Free DNS security audit for ecommerce storefronts. Checks Shopify connection records, SPF, DKIM, DMARC, CAA and more. Runs entirely in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F6F4EE;
+    --card:#FFFFFF;
+    --ink:#1A2420;
+    --ink-soft:#4A554F;
+    --line:#DAD5C8;
+    --line-soft:#E9E5DA;
+    --pass:#1E7A4F;
+    --pass-bg:#EAF4EE;
+    --warn:#A66A12;
+    --warn-bg:#F9F1E2;
+    --fail:#B3362B;
+    --fail-bg:#F9E9E7;
+    --info:#3B5B66;
+    --info-bg:#EAF0F2;
+    --accent:#14555A;
+    --accent-ink:#0E3D41;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --body:'Inter',system-ui,sans-serif;
+    --display:'Fraunces',Georgia,serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto;padding:0 20px 80px}
+
+  /* ---------- letterhead ---------- */
+  header{padding:34px 0 26px;border-bottom:2px solid var(--ink)}
+  .letterhead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{font-family:var(--display);font-weight:700;font-size:clamp(26px,4.5vw,38px);letter-spacing:-.01em}
+  .brand em{font-style:normal;color:var(--accent)}
+  .brand-sub{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+  .lede{margin-top:14px;max-width:600px;color:var(--ink-soft);font-size:15px}
+
+  /* ---------- input ---------- */
+  .scan-bar{margin-top:26px;display:flex;gap:10px;flex-wrap:wrap}
+  .scan-bar input{flex:1;min-width:230px;font-family:var(--mono);font-size:15px;padding:13px 14px;border:1.5px solid var(--ink);border-radius:6px;background:var(--card);color:var(--ink)}
+  .scan-bar input:focus{outline:3px solid var(--accent);outline-offset:1px}
+  .scan-bar button{font-family:var(--body);font-weight:600;font-size:15px;padding:13px 26px;border:none;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer}
+  .scan-bar button:hover{background:var(--accent-ink)}
+  .scan-bar button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+  .scan-bar button:disabled{opacity:.55;cursor:wait}
+  .hint{margin-top:8px;font-size:13px;color:var(--ink-soft)}
+  .err{margin-top:12px;padding:12px 14px;border-radius:6px;background:var(--fail-bg);border:1px solid var(--fail);color:var(--fail);font-size:14px;display:none}
+
+  /* ---------- report ---------- */
+  #report{display:none;margin-top:34px}
+  .report-head{display:flex;gap:24px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--line)}
+  .report-meta{flex:1;min-width:240px}
+  .report-domain{font-family:var(--mono);font-weight:600;font-size:clamp(18px,3vw,24px);word-break:break-all}
+  .report-stamp-row{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:6px;letter-spacing:.05em}
+  .score-line{margin-top:14px;font-size:14px;color:var(--ink-soft)}
+  .score-line strong{color:var(--ink)}
+
+  /* the stamped grade seal - signature element */
+  .seal{width:118px;height:118px;border-radius:50%;border:3px double var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(-7deg);flex:none;position:relative;background:var(--card)}
+  .seal.stamped{animation:stamp .38s cubic-bezier(.2,1.6,.4,1) both}
+  @keyframes stamp{0%{transform:rotate(-7deg) scale(2.1);opacity:0}70%{transform:rotate(-7deg) scale(.96);opacity:1}100%{transform:rotate(-7deg) scale(1)}}
+  .seal .g{font-family:var(--display);font-weight:700;font-size:52px;line-height:1}
+  .seal .t{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;margin-top:2px}
+  .seal.grade-a{color:var(--pass);border-color:var(--pass)}
+  .seal.grade-b{color:var(--pass);border-color:var(--pass)}
+  .seal.grade-c{color:var(--warn);border-color:var(--warn)}
+  .seal.grade-d{color:var(--warn);border-color:var(--warn)}
+  .seal.grade-f{color:var(--fail);border-color:var(--fail)}
+  @media (prefers-reduced-motion:reduce){.seal.stamped{animation:none}}
+
+  /* ---------- check rows ---------- */
+  .section-label{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);margin:30px 0 10px;display:flex;align-items:center;gap:10px}
+  .section-label::after{content:"";flex:1;height:1px;background:var(--line)}
+  .check{background:var(--card);border:1px solid var(--line);border-radius:8px;margin-bottom:10px;overflow:hidden}
+  .check-head{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;user-select:none;width:100%;background:none;border:none;font:inherit;text-align:left;color:inherit}
+  .check-head:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+  .verdict{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.08em;padding:3px 9px;border-radius:4px;flex:none;min-width:56px;text-align:center}
+  .v-pass{background:var(--pass-bg);color:var(--pass)}
+  .v-warn{background:var(--warn-bg);color:var(--warn)}
+  .v-fail{background:var(--fail-bg);color:var(--fail)}
+  .v-info{background:var(--info-bg);color:var(--info)}
+  .v-run{background:var(--line-soft);color:var(--ink-soft)}
+  .check-title{font-weight:600;font-size:15px;flex:1}
+  .check-sub{font-size:13px;color:var(--ink-soft);display:none}
+  @media(min-width:640px){.check-sub{display:block;max-width:42%;text-align:right}}
+  .chev{flex:none;width:10px;height:10px;border-right:2px solid var(--ink-soft);border-bottom:2px solid var(--ink-soft);transform:rotate(45deg);transition:transform .15s;margin-left:2px}
+  .check.open .chev{transform:rotate(-135deg)}
+  .check-body{display:none;padding:4px 16px 16px;border-top:1px solid var(--line-soft)}
+  .check.open .check-body{display:block}
+  .check-body h4{font-size:12px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin:14px 0 5px}
+  .check-body p{font-size:14px;color:var(--ink);margin-bottom:6px}
+  .check-body a{color:var(--accent);font-weight:500}
+  .rec{font-family:var(--mono);font-size:12.5px;background:var(--paper);border:1px solid var(--line-soft);border-radius:5px;padding:9px 11px;margin:4px 0;word-break:break-all;line-height:1.5}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;flex:none}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation-duration:2s}}
+
+  /* ---------- limits + checklist ---------- */
+  .limits{margin-top:36px;padding:20px;border:1.5px dashed var(--line);border-radius:8px;background:transparent}
+  .limits h3{font-family:var(--display);font-size:19px;margin-bottom:8px}
+  .limits p{font-size:14px;color:var(--ink-soft);margin-bottom:10px}
+  .limits ul{margin:0 0 0 20px;font-size:14px;color:var(--ink)}
+  .limits li{margin-bottom:7px}
+  footer{margin-top:46px;padding-top:18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-soft)}
+  footer p{margin-bottom:6px}
+  .mono{font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="letterhead">
+      <div>
+        <div class="brand">StoreDNS <em>Audit</em></div>
+        <div class="brand-sub">DNS security report &middot; built for Shopify storefronts</div>
+      </div>
+    </div>
+    <p class="lede">Enter your store's custom domain. Your browser queries public DNS directly and grades the records that control your store's connection, email deliverability, and spoofing protection. Nothing is sent to any server owned by this site.</p>
+    <div class="scan-bar">
+      <input id="domain" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="yourstore.com" aria-label="Store domain">
+      <button id="go">Run audit</button>
+    </div>
+    <p class="hint">Use the root custom domain (example.com), not a myshopify.com address. Free myshopify.com domains are managed entirely by Shopify and have nothing user-fixable to audit.</p>
+    <div class="err" id="err" role="alert"></div>
+  </header>
+
+  <main id="report" aria-live="polite">
+    <div class="report-head">
+      <div class="report-meta">
+        <div class="report-domain" id="r-domain"></div>
+        <div class="report-stamp-row" id="r-time"></div>
+        <div class="score-line" id="r-score"></div>
+      </div>
+      <div class="seal" id="seal" aria-label="Overall grade">
+        <div class="g" id="seal-grade">&ndash;</div>
+        <div class="t">DNS grade</div>
+      </div>
+    </div>
+
+    <div id="sections"></div>
+
+    <div class="limits">
+      <h3>What a DNS scan can't see</h3>
+      <p>These checks read public DNS records only. They cannot see inside your Shopify admin. Verify these yourself, they matter as much as anything above:</p>
+      <ul>
+        <li><strong>Two-step authentication on every staff account.</strong> Shopify admin &rarr; Settings &rarr; Users. This is the single highest-impact store security setting.</li>
+        <li><strong>Staff permissions.</strong> Remove ex-collaborators, limit each account to what it needs.</li>
+        <li><strong>Installed app review.</strong> Apps get API access to your store data. Uninstall anything you don't use.</li>
+        <li><strong>Unique, strong password</strong> on the store owner account, stored in a password manager.</li>
+      </ul>
+    </div>
+
+    <footer>
+      <p>Method: DNS queries are resolved in your browser via Google Public DNS (dns.google) with Cloudflare (cloudflare-dns.com) as fallback, both over HTTPS. Verdict criteria for Shopify-specific records follow Shopify's published help documentation. Email standards follow RFC 7208 (SPF) and RFC 7489 (DMARC).</p>
+      <p>This report covers DNS configuration only and is not a full penetration test or a guarantee of security.</p>
+    </footer>
+  </main>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ================= DNS-over-HTTPS client ================= */
+
+const TYPE_NUM = {A:1, AAAA:28, CNAME:5, TXT:16, MX:15, NS:2, CAA:257};
+
+async function dohGoogle(name, type){
+  const u = `https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`;
+  const r = await fetch(u);
+  if(!r.ok) throw new Error("google-doh " + r.status);
+  return r.json();
+}
+async function dohCloudflare(name, type){
+  const u = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`;
+  const r = await fetch(u, {headers:{accept:"application/dns-json"}});
+  if(!r.ok) throw new Error("cf-doh " + r.status);
+  return r.json();
+}
+async function dnsQuery(name, type){
+  try { return await dohGoogle(name, type); }
+  catch(e){ return await dohCloudflare(name, type); }
+}
+
+/* Extract answer records of a given type from a DoH JSON response */
+function answers(resp, type){
+  if(!resp || !Array.isArray(resp.Answer)) return [];
+  return resp.Answer.filter(a => a.type === TYPE_NUM[type]).map(a => a.data);
+}
+/* TXT records arrive as one or more quoted chunks; join them */
+function joinTxt(raw){
+  return raw.replace(/"\s+"/g,"").replace(/^"|"$/g,"");
+}
+
+/* ================= domain normalization ================= */
+
+function normalizeDomain(input){
+  let d = input.trim().toLowerCase();
+  d = d.replace(/^https?:\/\//,"").replace(/^\/+/,"");
+  d = d.split("/")[0].split("?")[0].split("#")[0].split(":")[0];
+  d = d.replace(/\.$/,"");
+  if(d.startsWith("www.")) d = d.slice(4);
+  return d;
+}
+function looksLikeDomain(d){
+  return /^([a-z0-9\u00a1-\uffff]([a-z0-9\u00a1-\uffff-]{0,61}[a-z0-9\u00a1-\uffff])?\.)+[a-z\u00a1-\uffff]{2,}$/.test(d);
+}
+
+/* ================= facts (sources in footer) =================
+   Shopify default A: 23.227.38.65; regional variants share 23.227.38.x
+   Shopify AAAA: 2620:0127:f00f:5:: (expanded 2620:0127:f00f:0005:0:0:0:0)
+   www CNAME target: shops.myshopify.com
+   Shopify troubleshooting doc: one A record, one AAAA, no DNSSEC,
+   no Cloudflare proxy, CAA must permit Google / Let's Encrypt / SSL.com
+   Email: 4 Shopify CNAMEs handle DKIM+SPF; DMARC TXT required;
+   multiple DMARC records fail validation; adkim=s / aspf=s break alignment.
+================================================================ */
+
+const SHOPIFY_A_PREFIX = "23.227.38.";
+const SHOPIFY_AAAA = ["2620:127:f00f:5::","2620:0127:f00f:5::","2620:127:f00f:5:0:0:0:0","2620:0127:f00f:0005:0000:0000:0000:0000"];
+const SHOPIFY_WWW_TARGET = "shops.myshopify.com";
+const SHOPIFY_CAA_REQUIRED = ["letsencrypt.org","pki.goog","ssl.com"];
+
+const DKIM_SELECTORS = ["google","default","selector1","selector2","k1","k2","k3","s1","s2","dkim","mail","smtp","krs","kl","kl2","pm","em","mandrill","everlytickey1","zendesk1"];
+
+const MAIL_PROVIDERS = [
+  [/aspmx.*google|googlemail|smtp\.google/i,"Google Workspace"],
+  [/outlook|protection\.office365|mail\.protection/i,"Microsoft 365"],
+  [/zoho/i,"Zoho Mail"],
+  [/icloud|apple/i,"iCloud Mail"],
+  [/improvmx/i,"ImprovMX forwarding"],
+  [/forwardemail/i,"Forward Email"],
+  [/mxroute/i,"MXroute"],
+  [/protonmail|proton\.ch/i,"Proton Mail"],
+  [/messagingengine|fastmail/i,"Fastmail"],
+];
+
+const HELP = {
+  connect: "https://help.shopify.com/en/manual/domains/add-a-domain/connecting-domains/connect-domain-manual",
+  trouble: "https://help.shopify.com/en/manual/domains/troubleshoot-issues-with-domains",
+  email:   "https://help.shopify.com/en/manual/intro-to-shopify/initial-setup/setup-your-email"
+};
+
+/* ================= check engine ================= */
+
+const $ = (id) => document.getElementById(id);
+const sectionsEl = $("sections");
+let state = null;
+
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function makeSection(label){
+  const h = document.createElement("div");
+  h.className = "section-label";
+  h.textContent = label;
+  sectionsEl.appendChild(h);
+}
+
+function makeCheck(id, title){
+  const el = document.createElement("div");
+  el.className = "check";
+  el.id = "chk-" + id;
+  el.innerHTML =
+    '<button class="check-head" aria-expanded="false">' +
+      '<span class="verdict v-run">&middot;&middot;&middot;</span>' +
+      '<span class="check-title">' + esc(title) + '</span>' +
+      '<span class="check-sub"></span>' +
+      '<span class="spin" role="status" aria-label="checking"></span>' +
+      '<span class="chev" hidden></span>' +
+    '</button>' +
+    '<div class="check-body"></div>';
+  el.querySelector(".check-head").addEventListener("click", () => {
+    if(el.dataset.done !== "1") return;
+    const open = el.classList.toggle("open");
+    el.querySelector(".check-head").setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  sectionsEl.appendChild(el);
+  return el;
+}
+
+/* verdict: pass | warn | fail | info ; weight applied to score */
+const WEIGHT = {pass:0, info:0, warn:6, fail:15};
+const VLABEL = {pass:"PASS", warn:"WARN", fail:"FAIL", info:"INFO"};
+
+function settle(el, verdict, subline, bodyHtml){
+  const v = el.querySelector(".verdict");
+  v.className = "verdict v-" + verdict;
+  v.textContent = VLABEL[verdict];
+  el.querySelector(".check-sub").textContent = subline || "";
+  el.querySelector(".spin").remove();
+  el.querySelector(".chev").hidden = false;
+  el.querySelector(".check-body").innerHTML = bodyHtml || "<p>No details.</p>";
+  el.dataset.done = "1";
+  state.results.push(verdict);
+  state.score = Math.max(0, state.score - WEIGHT[verdict]);
+}
+
+function recHtml(list){
+  return list.map(r => '<div class="rec">' + esc(r) + '</div>').join("");
+}
+function block(meaning, fix, records){
+  let h = "";
+  if(records && records.length){ h += "<h4>Records found</h4>" + recHtml(records); }
+  if(meaning){ h += "<h4>What this means</h4><p>" + meaning + "</p>"; }
+  if(fix){ h += "<h4>How to fix</h4><p>" + fix + "</p>"; }
+  return h;
+}
+
+/* ================= individual checks ================= */
+
+async function checkA(domain){
+  const el = makeCheck("a", "Storefront A record (IPv4)");
+  try{
+    const resp = await dnsQuery(domain, "A");
+    state.adFlag = !!resp.AD; /* DNSSEC validation flag, reused later */
+    const recs = answers(resp, "A");
+    state.aRecords = recs;
+    state.isShopify = recs.some(ip => ip.startsWith(SHOPIFY_A_PREFIX));
+    if(recs.length === 0){
+      settle(el, "fail", "no A record found",
+        block("The domain has no IPv4 address record. Browsers can't reach a storefront at this domain unless an AAAA or apex CNAME/ALIAS setup exists (checked separately).",
+        'For Shopify, point a single A record to 23.227.38.65. <a href="'+HELP.connect+'" target="_blank" rel="noopener">Shopify: connect a domain manually</a>.'));
+    } else if(state.isShopify && recs.length === 1){
+      settle(el, "pass", recs[0],
+        block("One A record pointing into Shopify's documented 23.227.38.x range. This matches Shopify's connection requirements exactly.", null, recs));
+    } else if(state.isShopify && recs.length > 1){
+      settle(el, "warn", recs.length + " A records",
+        block("Multiple A records were found. Shopify's troubleshooting documentation states there should be exactly one A record; extras can cause intermittent connection and SSL issues.",
+        'Delete every A record except the one pointing to 23.227.38.65 at your DNS provider. <a href="'+HELP.trouble+'" target="_blank" rel="noopener">Shopify: troubleshoot domain issues</a>.', recs));
+    } else {
+      settle(el, "info", recs[0] + (recs.length>1 ? " +" + (recs.length-1) : ""),
+        block("This IP is not in Shopify's documented 23.227.38.x range, so this domain doesn't appear to be directly connected to Shopify at the apex. It may be hosted elsewhere, behind a proxy/CDN, or use a different setup. Note: Shopify's docs state Cloudflare's orange-cloud proxy is not supported for Shopify-connected domains.",
+        'If this store should be on Shopify and isn\'t loading correctly, see <a href="'+HELP.trouble+'" target="_blank" rel="noopener">Shopify: troubleshoot domain issues</a>. If it\'s intentionally hosted elsewhere, ignore this.', recs));
+    }
+  }catch(e){
+    settle(el, "info", "query failed", block("DNS query failed: " + esc(e.message) + ". This is a network issue, not a finding about the domain.", null));
+  }
+}
+
+async function checkAAAA(domain){
+  const el = makeCheck("aaaa", "Storefront AAAA record (IPv6)");
+  try{
+    const resp = await dnsQuery(domain, "AAAA");
+    const recs = answers(resp, "AAAA");
+    const isShopifyV6 = recs.some(ip => SHOPIFY_AAAA.includes(ip.toLowerCase()));
+    if(recs.length === 0){
+      settle(el, state.isShopify ? "warn" : "info", "no AAAA record",
+        block(state.isShopify
+          ? "No IPv6 record. The store still works over IPv4, but Shopify's documented setup includes an AAAA record so IPv6-only networks reach you directly."
+          : "No IPv6 record. Informational only.",
+        state.isShopify ? 'Add one AAAA record pointing to 2620:0127:f00f:5:: (expanded form 2620:0127:f00f:0005:0000:0000:0000:0000 if your provider rejects the short one). <a href="'+HELP.connect+'" target="_blank" rel="noopener">Shopify: connect a domain manually</a>.' : null));
+    } else if(isShopifyV6 && recs.length === 1){
+      settle(el, "pass", recs[0], block("One AAAA record matching Shopify's documented IPv6 address.", null, recs));
+    } else if(isShopifyV6){
+      settle(el, "warn", recs.length + " AAAA records",
+        block("Multiple AAAA records found. Shopify's troubleshooting docs call for exactly one; with several, browsers pick one at random and some visitors may be routed elsewhere.",
+        'Remove all AAAA records except 2620:0127:f00f:5::. <a href="'+HELP.trouble+'" target="_blank" rel="noopener">Shopify: troubleshoot domain issues</a>.', recs));
+    } else {
+      settle(el, "info", recs[0], block("AAAA record exists but doesn't match Shopify's documented IPv6 address. Fine if the domain isn't Shopify-connected at the apex.", null, recs));
+    }
+  }catch(e){
+    settle(el, "info", "query failed", block("DNS query failed: " + esc(e.message) + ".", null));
+  }
+}
+
+async function checkWWW(domain){
+  const el = makeCheck("www", "www subdomain CNAME");
+  try{
+    const resp = await dnsQuery("www." + domain, "CNAME");
+    const recs = answers(resp, "CNAME").map(r => r.replace(/\.$/,"").toLowerCase());
+    if(recs.includes(SHOPIFY_WWW_TARGET)){
+      settle(el, "pass", "shops.myshopify.com", block("www points to shops.myshopify.com, matching Shopify's documented setup.", null, recs));
+    } else if(recs.length){
+      settle(el, state.isShopify ? "warn" : "info", recs[0],
+        block(state.isShopify
+          ? "The apex is connected to Shopify but www points somewhere else. Visitors typing www.yourdomain may not reach the store, or SSL may fail on www."
+          : "www resolves via CNAME to a non-Shopify target. Fine for non-Shopify hosting.",
+        state.isShopify ? 'Set the www CNAME to shops.myshopify.com. (a trailing period, exactly as Shopify\'s guide shows). <a href="'+HELP.connect+'" target="_blank" rel="noopener">Shopify: connect a domain manually</a>.' : null, recs));
+    } else {
+      /* no CNAME; check if www resolves via A at all */
+      const a = answers(await dnsQuery("www." + domain, "A"), "A");
+      if(a.length){
+        settle(el, "info", "A record on www", block("www resolves by A record rather than CNAME. Some managed setups do this. If the storefront loads over https on both www and non-www, it's working.", null, a));
+      } else {
+        settle(el, state.isShopify ? "warn" : "info", "www does not resolve",
+          block("www." + esc(domain) + " doesn't resolve at all. Anyone typing www in front of your domain gets an error.",
+          state.isShopify ? 'Add a CNAME record: host www, target shops.myshopify.com. <a href="'+HELP.connect+'" target="_blank" rel="noopener">Shopify guide</a>.' : "Add a www record at your DNS provider pointing to your host."));
+      }
+    }
+  }catch(e){
+    settle(el, "info", "query failed", block("DNS query failed: " + esc(e.message) + ".", null));
+  }
+}
+
+async function checkSPF(domain){
+  const el = makeCheck("spf", "SPF policy (TXT)");
+  try{
+    const resp = await dnsQuery(domain, "TXT");
+    const txts = answers(resp, "TXT").map(joinTxt);
+    state.rootTxt = txts;
+    const spf = txts.filter(t => /^v=spf1(\s|$)/i.test(t));
+    if(spf.length === 0){
+      settle(el, "warn", "no SPF record",
+        block("No SPF TXT record at the root domain. SPF tells receiving mail servers which senders may use your domain. Note for Shopify stores: Shopify's email authentication works through CNAME records and its docs state no separate SPF TXT record is required for Shopify Email itself. But if you send mail from this domain through any other provider (Google Workspace, Microsoft 365, Klaviyo, etc.), that provider's SPF include belongs in a root SPF record, and having no SPF at all weakens your DMARC posture.",
+        'If you use a mailbox provider on this domain, publish its documented SPF record, for example v=spf1 include:_spf.google.com ~all for Google Workspace. One record only.'));
+    } else if(spf.length > 1){
+      settle(el, "fail", spf.length + " SPF records",
+        block("Multiple SPF records found. Under RFC 7208 this makes SPF evaluation fail outright (permerror); it's the same as having a broken record. Mail receivers may junk or reject your mail.",
+        "Merge all mechanisms into a single v=spf1 record and delete the rest.", spf));
+    } else {
+      const rec = spf[0];
+      const allMatch = rec.match(/([~\-\+\?])all\b/i);
+      const lookups = (rec.match(/\b(include:|redirect=|a[\s:]|mx[\s:]|ptr[\s:]|exists:)/gi) || []).length;
+      const recs = [rec];
+      if(lookups > 10){
+        settle(el, "fail", "over 10 DNS lookups",
+          block("This SPF record triggers more than 10 DNS lookups. RFC 7208 caps SPF at 10; past that, receivers return permerror and SPF fails for all your mail.",
+          "Remove unused include: mechanisms or use an SPF flattening service.", recs));
+      } else if(!allMatch){
+        settle(el, "warn", "no all mechanism",
+          block("The SPF record has no terminating all mechanism, so it doesn't state a policy for unauthorized senders.",
+          "End the record with ~all (softfail) or -all (fail).", recs));
+      } else if(allMatch[1] === "+"){
+        settle(el, "fail", "+all (allows anyone)",
+          block("+all authorizes every server on the internet to send as your domain. This is the worst possible SPF value and actively enables spoofing.",
+          "Change +all to ~all or -all immediately.", recs));
+      } else if(allMatch[1] === "?"){
+        settle(el, "warn", "?all (neutral)",
+          block("?all is neutral: it expresses no opinion about unauthorized senders, which gives receivers nothing to act on.",
+          "Use ~all or -all instead.", recs));
+      } else {
+        settle(el, "pass", allMatch[1] + "all, " + lookups + " lookups",
+          block("Single valid SPF record with a " + (allMatch[1]==="-" ? "strict fail" : "softfail") + " policy and " + lookups + " of 10 permitted DNS lookups.", null, recs));
+      }
+    }
+  }catch(e){
+    settle(el, "info", "query failed", block("DNS query failed: " + esc(e.message) + ".", null));
+  }
+}
+
+async function checkDMARC(domain){
+  const el = makeCheck("dmarc", "DMARC policy (_dmarc TXT)");
+  try{
+    const resp = await dnsQuery("_dmarc." + domain, "TXT");
+    const txts = answers(resp, "TXT").map(joinTxt).filter(t => /^v=DMARC1/i.test(t));
+    if(txts.length === 0){
+      settle(el, "fail", "no DMARC record",
+        block("No DMARC record found. Since February 2024, Gmail and Yahoo require DMARC for domains sending them mail; Shopify likewise requires a DMARC record for custom sender addresses, otherwise your sender is rewritten to store+123@shopifyemail.com and your mail is easier to spoof.",
+        'Add a TXT record at host _dmarc with value v=DMARC1; p=none; rua=mailto:you@' + esc(domain) + ' to start monitoring, then move to p=quarantine once reports look clean. <a href="'+HELP.email+'" target="_blank" rel="noopener">Shopify: set up your email</a>.'));
+    } else if(txts.length > 1){
+      settle(el, "fail", txts.length + " DMARC records",
+        block("Multiple DMARC records found. Shopify's documentation states this causes validation to fail and your sender email to be rewritten to store+123@shopifyemail.com. DMARC standards treat duplicates as invalid.",
+        "Delete all but one _dmarc TXT record.", txts));
+    } else {
+      const rec = txts[0];
+      const p = (rec.match(/;\s*p\s*=\s*(none|quarantine|reject)/i) || [,""])[1].toLowerCase();
+      const rua = /rua\s*=/i.test(rec);
+      const strictA = /adkim\s*=\s*s/i.test(rec);
+      const strictS = /aspf\s*=\s*s/i.test(rec);
+      const notes = [];
+      let verdict = "pass", sub = "p=" + (p || "?");
+      if(!p){ verdict = "warn"; sub = "no policy tag"; notes.push("The record has no valid p= tag, so receivers treat it as broken."); }
+      else if(p === "none"){ verdict = "warn"; notes.push("p=none is monitoring mode: spoofed mail is still delivered normally. It satisfies the minimum Gmail/Yahoo/Shopify requirement, and is the right starting point, but the goal is quarantine or reject once reports confirm legitimate mail passes."); }
+      else { notes.push("Enforcing policy (" + p + "). Spoofed mail failing DMARC gets " + (p==="reject" ? "rejected outright" : "sent to spam") + "."); }
+      if(!rua){ if(verdict==="pass") verdict="warn"; notes.push("No rua= reporting address, so you receive no aggregate reports and can't see who is sending as your domain."); }
+      if(strictA || strictS){ if(verdict==="pass") verdict="warn"; notes.push("Strict alignment detected (" + (strictA?"adkim=s ":"") + (strictS?"aspf=s":"") + "). Shopify's docs state strict alignment can prevent mail sent through Shopify from authenticating; they recommend relaxed (r) alignment."); }
+      settle(el, verdict, sub, block(notes.join(" "), verdict==="pass" ? null :
+        'Recommended shape: v=DMARC1; p=quarantine; rua=mailto:you@' + esc(domain) + '; adkim=r; aspf=r; and raise to p=reject when confident. <a href="'+HELP.email+'" target="_blank" rel="noopener">Shopify: set up your email</a>.', [rec]));
+    }
+  }catch(e){
+    settle(el, "info", "query failed", block("DNS query failed: " + esc(e.message) + ".", null));
+  }
+}
+
+async function checkDKIM(domain){
+  const el = makeCheck("dkim", "DKIM selectors (common-selector probe)");
+  try{
+    const found = [];
+    const probes = DKIM_SELECTORS.map(async sel => {
+      const host = sel + "._domainkey." + domain;
+      try{
+        const resp = await dnsQuery(host, "TXT");
+        const txt = answers(resp, "TXT").map(joinTxt).filter(t => /v=DKIM1|k=rsa|p=[A-Za-z0-9+/]/.test(t));
+        const cn  = answers(resp, "CNAME");
+        if(txt.length || cn.length) found.push(sel + (cn.length ? " (CNAME to " + cn[0].replace(/\.$/,"") + ")" : ""));
+      }catch(e){/* selector absent or query fail; ignore */}
+    });
+    await Promise.all(probes);
+    if(found.length){
+      settle(el, "pass", found.length + " selector(s) found",
+        block("DKIM keys or delegation CNAMEs were found at the listed selectors, meaning at least one sending service cryptographically signs mail for this domain.", null, found.sort()));
+    } else {
+      settle(el, "info", "none of " + DKIM_SELECTORS.length + " common selectors",
+        block("Honest limitation: DKIM selectors can be any name, and there is no way to enumerate them from outside. This probe checked " + DKIM_SELECTORS.length + " selectors commonly used by major providers and found none. That does NOT prove DKIM is missing. In particular, Shopify's email authentication uses store-specific CNAME hostnames shown in your Shopify admin, which an outside scan can't guess.",
+        'To verify DKIM for a Shopify store: admin &rarr; Settings &rarr; Notifications &rarr; Email domain authentication should show authenticated. <a href="'+HELP.email+'" target="_blank" rel="noopener">Shopify: set up your email</a>. To verify end-to-end, send yourself an email from the store and use "show original" in Gmail to confirm DKIM: PASS.'));
+    }
+  }catch(e){
+    settle(el, "info", "probe failed", block("Probe failed: " + esc(e.message) + ".", null));
+  }
+}
+
+async function checkMX(domain){
+  const el = makeCheck("mx", "Mail routing (MX)");
+  try{
+    const resp = await dnsQuery(domain, "MX");
+    const recs = answers(resp, "MX");
+    if(recs.length === 0){
+      settle(el, "info", "no MX records",
+        block("No mail servers are published for this domain, so it can't receive email. Shopify doesn't host mailboxes, so a Shopify store domain without a separate email provider looks exactly like this. If you want name@" + esc(domain) + " to receive mail, you need an email provider.", null));
+    } else {
+      let provider = null;
+      for(const [re, name] of MAIL_PROVIDERS){ if(recs.some(r => re.test(r))){ provider = name; break; } }
+      settle(el, "pass", provider || (recs.length + " MX record(s)"),
+        block("Mail for this domain routes to " + (provider ? provider : "the listed servers") + ". Make sure the SPF and DKIM findings above cover this provider.", null, recs));
+    }
+  }catch(e){
+    settle(el, "info", "query failed", block("DNS query failed: " + esc(e.message) + ".", null));
+  }
+}
+
+async function checkCAA(domain){
+  const el = makeCheck("caa", "Certificate authority authorization (CAA)");
+  try{
+    const resp = await dnsQuery(domain, "CAA");
+    const recs = answers(resp, "CAA");
+    if(recs.length === 0){
+      settle(el, "info", "no CAA records",
+        block("No CAA records, which means any certificate authority may issue SSL certificates for this domain. This is the default state of most domains and doesn't block anything. Adding CAA is optional hardening. Important if you add it on a Shopify-connected domain: Shopify's docs require that Google, Let's Encrypt, and SSL.com remain permitted to issue, or your store's SSL provisioning breaks.", null));
+    } else {
+      const issueVals = recs.filter(r => /\sissue\s/.test(r)).map(r => (r.match(/"([^"]*)"/)||[,""])[1].toLowerCase());
+      if(state.isShopify){
+        const missing = SHOPIFY_CAA_REQUIRED.filter(ca => !issueVals.some(v => v.includes(ca)));
+        if(missing.length){
+          settle(el, "fail", "blocks Shopify CAs",
+            block("CAA records exist but do not permit: " + esc(missing.join(", ")) + ". Shopify's troubleshooting docs require the domain to permit Google, Let's Encrypt, and SSL.com to provision SSL. With these blocked, certificate issuance for the store can fail.",
+            'Add issue entries for the missing authorities or remove the restrictive CAA records. <a href="'+HELP.trouble+'" target="_blank" rel="noopener">Shopify: troubleshoot domain issues</a>.', recs));
+        } else {
+          settle(el, "pass", "Shopify CAs permitted", block("CAA hardening is in place and all three certificate authorities Shopify uses are permitted.", null, recs));
+        }
+      } else {
+        settle(el, "pass", issueVals.length + " issuer(s) pinned", block("CAA records restrict which authorities can issue certificates for this domain. Good hardening, as long as your actual host's CA is on the list.", null, recs));
+      }
+    }
+  }catch(e){
+    settle(el, "info", "query failed", block("DNS query failed: " + esc(e.message) + ".", null));
+  }
+}
+
+async function checkDNSSEC(domain){
+  const el = makeCheck("dnssec", "DNSSEC");
+  try{
+    /* AD flag captured during the A query; re-query if missing */
+    let ad = state.adFlag;
+    if(ad === undefined){ ad = !!(await dnsQuery(domain, "A")).AD; }
+    if(ad && state.isShopify){
+      settle(el, "warn", "active on Shopify domain",
+        block("The resolver validated this domain with DNSSEC. Normally that's a security positive, but Shopify's own troubleshooting documentation lists active DNSSEC as a cause of domain connection problems and instructs merchants to ensure no DNSSEC is active on Shopify-connected domains.",
+        'If you see domain or SSL issues, disable DNSSEC at your registrar. If everything works, monitor it. <a href="'+HELP.trouble+'" target="_blank" rel="noopener">Shopify: troubleshoot domain issues</a>.'));
+    } else if(ad){
+      settle(el, "pass", "signatures validate", block("DNS responses for this domain are cryptographically signed and validated, protecting against DNS spoofing at the resolver level.", null));
+    } else {
+      settle(el, "info", "not validated",
+        block("Responses were not DNSSEC-validated. This is the majority case on the internet and, notably, Shopify's docs say DNSSEC should not be active on Shopify-connected domains, so for a Shopify store this state is expected and correct.", null));
+    }
+  }catch(e){
+    settle(el, "info", "query failed", block("Query failed: " + esc(e.message) + ".", null));
+  }
+}
+
+async function checkNS(domain){
+  const el = makeCheck("ns", "Nameservers");
+  try{
+    const recs = answers(await dnsQuery(domain, "NS"), "NS").map(r => r.replace(/\.$/,""));
+    settle(el, "info", recs.length ? recs[0] : "none found",
+      block(recs.length ? "DNS for this domain is served by the listed nameservers. This is where every fix in this report gets made, unless the domain is Shopify-managed, in which case records are edited in Shopify admin &rarr; Settings &rarr; Domains." : "No NS records returned, which is unusual; the domain may be newly registered or misconfigured.", null, recs));
+  }catch(e){
+    settle(el, "info", "query failed", block("Query failed: " + esc(e.message) + ".", null));
+  }
+}
+
+/* ================= orchestration ================= */
+
+function grade(score){
+  if(score >= 90) return "A";
+  if(score >= 80) return "B";
+  if(score >= 70) return "C";
+  if(score >= 60) return "D";
+  return "F";
+}
+
+async function run(){
+  const errEl = $("err");
+  errEl.style.display = "none";
+  const domain = normalizeDomain($("domain").value);
+  if(!looksLikeDomain(domain)){
+    errEl.textContent = "That doesn't look like a domain. Enter something like yourstore.com (no https://, no paths).";
+    errEl.style.display = "block";
+    return;
+  }
+  if(domain.endsWith(".myshopify.com")){
+    errEl.textContent = "myshopify.com addresses are managed entirely by Shopify; there are no DNS records you can change. Enter the store's custom domain instead.";
+    errEl.style.display = "block";
+    return;
+  }
+
+  const btn = $("go");
+  btn.disabled = true; btn.textContent = "Auditing\u2026";
+  state = {score:100, results:[], isShopify:false, aRecords:[], adFlag:undefined};
+  sectionsEl.innerHTML = "";
+  $("report").style.display = "block";
+  $("r-domain").textContent = domain;
+  $("r-time").textContent = "audited " + new Date().toLocaleString();
+  $("r-score").textContent = "Running checks\u2026";
+  const seal = $("seal");
+  seal.className = "seal";
+  $("seal-grade").textContent = "\u2013";
+  $("report").scrollIntoView({behavior:"smooth", block:"start"});
+
+  makeSection("Storefront connection");
+  await checkA(domain);
+  await checkAAAA(domain);
+  await checkWWW(domain);
+
+  makeSection("Email security and deliverability");
+  await checkSPF(domain);
+  await checkDMARC(domain);
+  await checkDKIM(domain);
+  await checkMX(domain);
+
+  makeSection("Infrastructure hardening");
+  await checkCAA(domain);
+  await checkDNSSEC(domain);
+  await checkNS(domain);
+
+  const g = grade(state.score);
+  const counts = {pass:0,warn:0,fail:0,info:0};
+  state.results.forEach(r => counts[r]++);
+  $("r-score").innerHTML = "<strong>" + state.score + "/100</strong> &middot; " +
+    counts.pass + " pass &middot; " + counts.warn + " warnings &middot; " + counts.fail + " failures &middot; " + counts.info + " informational" +
+    "<br>Scoring: each warning \u22126, each failure \u221215. Informational items don't affect the grade.";
+  $("seal-grade").textContent = g;
+  seal.classList.add("grade-" + g.toLowerCase(), "stamped");
+
+  btn.disabled = false; btn.textContent = "Run audit";
+}
+
+$("go").addEventListener("click", run);
+$("domain").addEventListener("keydown", e => { if(e.key === "Enter") run(); });
+})();
+</script>
+</body>
+</html>
