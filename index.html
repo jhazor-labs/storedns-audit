@@ -112,6 +112,12 @@
 
   /* ---------- limits + checklist ---------- */
   .limits{margin-top:36px;padding:20px;border:1.5px dashed var(--line);border-radius:8px;background:transparent}
+  .fixit{margin-top:16px;padding:20px;border:1.5px solid var(--accent);border-radius:8px;background:var(--card);display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  .fixit-txt{flex:1;min-width:240px}
+  .fixit h3{font-family:var(--display);font-size:19px;margin-bottom:6px}
+  .fixit p{font-size:14px;color:var(--ink-soft)}
+  .fixit a{flex:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:6px;background:var(--accent);color:#fff;text-decoration:none}
+  .fixit a:hover{background:var(--accent-ink)}
   .limits h3{font-family:var(--display);font-size:19px;margin-bottom:8px}
   .limits p{font-size:14px;color:var(--ink-soft);margin-bottom:10px}
   .limits ul{margin:0 0 0 20px;font-size:14px;color:var(--ink)}
@@ -154,6 +160,14 @@
     </div>
 
     <div id="sections"></div>
+
+    <div class="fixit">
+      <div class="fixit-txt">
+        <h3>Fix everything on this report</h3>
+        <p>The Shopify Store Security Checklist is the 12-page companion guide: step-by-step fixes for every warning above, plus the staff, app, and anti-scam hardening no DNS scan can see. Sourced to Shopify's own documentation.</p>
+      </div>
+      <a href="https://azorcraft7.gumroad.com/l/shopify-security-checklist" target="_blank" rel="noopener">Get the checklist &middot; $12</a>
+    </div>
 
     <div class="limits">
       <h3>What a DNS scan can't see</h3>

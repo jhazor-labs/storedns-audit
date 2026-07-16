@@ -1,6 +1,6 @@
 /* StoreDNS Audit service worker.
    To ship an update to any file, bump VERSION below and commit both files. */
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE = "storedns-" + VERSION;
 const SHELL = [
   "./",
